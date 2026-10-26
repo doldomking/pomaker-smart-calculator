@@ -273,15 +273,39 @@
     <section class="card comments-section">
       <div class="card-header comments-header">
         <div class="comments-title-wrap">
-          <h2>💬 사용자 댓글</h2>
+          <h2>💬 실시간 사용자 댓글</h2>
           <span id="commentCountBadge" class="badge">0개</span>
+          <span id="firebaseStatusBadge" class="fb-status-badge offline">🟠 Firebase 설정 필요</span>
         </div>
 
         <div class="admin-controls">
           <span id="adminActiveBadge" class="admin-badge hidden">🛡️ 관리자 모드 활성화됨</span>
           <button id="deleteAllCommentsBtn" class="danger-btn-sm hidden">🗑️ 전체 댓글 삭제</button>
+          <button id="toggleFirebaseConfigBtn" class="secondary-btn">🔥 Firebase 연결 설정</button>
           <button id="toggleAdminMenuBtn" class="secondary-btn">🔐 관리자 메뉴</button>
         </div>
+      </div>
+
+      <!-- Firebase 설정 입력 패널 -->
+      <div id="firebaseConfigPanel" class="admin-auth-panel hidden">
+        <div class="fb-config-header">
+          <strong>🔥 Firebase 프로젝트(test1026) 연동 설정</strong>
+          <div class="fb-db-type-group">
+            <label><input type="radio" name="fbDbType" value="firestore" checked /> Cloud Firestore</label>
+            <label><input type="radio" name="fbDbType" value="rtdb" /> Realtime Database</label>
+          </div>
+        </div>
+        <textarea
+          id="firebaseConfigInput"
+          class="comment-textarea fb-config-textarea"
+          rows="5"
+          placeholder="Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹 </>)의 firebaseConfig 코드 전체 또는 JSON을 여기에 붙여넣으세요.&#10;예시:&#10;const firebaseConfig = {&#10;  apiKey: &quot;AIzaSy...&quot;,&#10;  projectId: &quot;test1026-...&quot;,&#10;  databaseURL: &quot;https://...&quot;&#10;};"
+        ></textarea>
+        <div class="admin-auth-row" style="margin-top: 10px;">
+          <button id="saveFirebaseConfigBtn" class="primary-btn-sm">연결 및 실시간 동기화 시작</button>
+          <button id="clearFirebaseConfigBtn" class="text-btn">연결 해제 (로컬 모드)</button>
+        </div>
+        <p class="hint-text">* Firestore 또는 Realtime Database의 규칙(Rules)이 읽기/쓰기 허용(테스트 모드)으로 되어 있어야 모든 기기에서 실시간 동기화됩니다.</p>
       </div>
 
       <!-- 관리자 비밀번호 인증 패널 -->
@@ -327,6 +351,10 @@
     <div id="toast" class="toast hidden">복사되었습니다!</div>
   </div>
 
+  <!-- Firebase Compat SDK (App, Firestore, Realtime Database) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

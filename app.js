@@ -1093,8 +1093,17 @@ function initUnitConverter() {
   }
 }
 
-/* ==================== 5. 하단 댓글 & 관리자 삭제 기능 ==================== */
+/* ==================== 5. 하단 댓글 (Firebase 실시간 연동) & 관리자 삭제 기능 ==================== */
 const ADMIN_PASSWORD = '9875';
+
+// 기본 Firebase 설정 (test1026 프로젝트의 firebaseConfig가 있으면 여기에 넣거나 화면의 [🔥 Firebase 연결 설정]에서 붙여넣기 가능)
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "test1026.firebaseapp.com",
+  projectId: "test1026",
+  storageBucket: "test1026.firebasestorage.app",
+  databaseURL: ""
+};
 
 function escapeHtml(str) {
   return String(str)
@@ -1105,15 +1114,50 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// 사용자가 Firebase 콘솔에서 복사한 코드(const firebaseConfig = { ... })에서 키-값을 추출하는 파서
+function parseFirebaseConfigText(rawText) {
+  const text = rawText.trim();
+  if (!text) return null;
+
+  // Realtime Database URL만 단독으로 입력한 경우
+  if (/^https:\/\/.*\.firebaseio\.com\/?$/i.test(text) || /^https:\/\/.*\.firebasedatabase\.app\/?$/i.test(text)) {
+    return { databaseURL: text.replace(/\/$/, ''), projectId: 'test1026' };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const config = {};
+    const keys = ['apiKey', 'authDomain', 'databaseURL', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+    keys.forEach(k => {
+      const regex = new RegExp(`${k}\\s*:\\s*["']([^"']+)["']`);
+      const match = text.match(regex);
+      if (match) config[k] = match[1];
+    });
+    return Object.keys(config).length > 0 ? config : null;
+  }
+}
+
 function initComments() {
   let comments = JSON.parse(localStorage.getItem('smart_calc_comments') || '[]');
   let isAdmin = false;
+  let fbMode = null; // 'firestore' | 'rtdb' | null
+  let firestoreDb = null;
+  let rtdbRef = null;
+  let unsubscribeFirestore = null;
 
   const commentForm = document.getElementById('commentForm');
   const authorInput = document.getElementById('commentAuthor');
   const contentInput = document.getElementById('commentContent');
   const commentListEl = document.getElementById('commentList');
   const countBadge = document.getElementById('commentCountBadge');
+  const fbStatusBadge = document.getElementById('firebaseStatusBadge');
+
+  const toggleFbBtn = document.getElementById('toggleFirebaseConfigBtn');
+  const fbConfigPanel = document.getElementById('firebaseConfigPanel');
+  const fbConfigInput = document.getElementById('firebaseConfigInput');
+  const saveFbConfigBtn = document.getElementById('saveFirebaseConfigBtn');
+  const clearFbConfigBtn = document.getElementById('clearFirebaseConfigBtn');
 
   const toggleAdminBtn = document.getElementById('toggleAdminMenuBtn');
   const adminAuthPanel = document.getElementById('adminAuthPanel');
@@ -1122,6 +1166,131 @@ function initComments() {
   const adminLogoutBtn = document.getElementById('adminLogoutBtn');
   const adminActiveBadge = document.getElementById('adminActiveBadge');
   const deleteAllBtn = document.getElementById('deleteAllCommentsBtn');
+
+  // Firebase 설정 패널 토글
+  toggleFbBtn.addEventListener('click', () => {
+    fbConfigPanel.classList.toggle('hidden');
+  });
+
+  // 저장된 Firebase 설정 또는 기본 설정으로 연결 시도
+  const savedFbConfigStr = localStorage.getItem('smart_calc_fb_config');
+  const savedFbDbType = localStorage.getItem('smart_calc_fb_dbtype') || 'firestore';
+  if (savedFbConfigStr) {
+    fbConfigInput.value = savedFbConfigStr;
+    const radio = document.querySelector(`input[name="fbDbType"][value="${savedFbDbType}"]`);
+    if (radio) radio.checked = true;
+    const parsed = parseFirebaseConfigText(savedFbConfigStr);
+    if (parsed) connectFirebase(parsed, savedFbDbType);
+  } else if (DEFAULT_FIREBASE_CONFIG.apiKey || DEFAULT_FIREBASE_CONFIG.databaseURL) {
+    connectFirebase(DEFAULT_FIREBASE_CONFIG, DEFAULT_FIREBASE_CONFIG.databaseURL ? 'rtdb' : 'firestore');
+  }
+
+  saveFbConfigBtn.addEventListener('click', () => {
+    const raw = fbConfigInput.value.trim();
+    const parsed = parseFirebaseConfigText(raw);
+    const dbType = document.querySelector('input[name="fbDbType"]:checked')?.value || 'firestore';
+    if (!parsed) {
+      showToast('올바른 firebaseConfig 코드 또는 Database URL을 입력해 주세요.');
+      return;
+    }
+    localStorage.setItem('smart_calc_fb_config', raw);
+    localStorage.setItem('smart_calc_fb_dbtype', dbType);
+    connectFirebase(parsed, dbType, true);
+  });
+
+  clearFbConfigBtn.addEventListener('click', () => {
+    disconnectFirebase();
+    localStorage.removeItem('smart_calc_fb_config');
+    fbConfigInput.value = '';
+    updateFbBadge(false, '🟠 로컬 저장 모드');
+    comments = JSON.parse(localStorage.getItem('smart_calc_comments') || '[]');
+    renderComments();
+    showToast('Firebase 연결이 해제되어 로컬 모드로 전환되었습니다.');
+  });
+
+  function updateFbBadge(online, text) {
+    fbStatusBadge.textContent = text;
+    fbStatusBadge.classList.toggle('online', online);
+    fbStatusBadge.classList.toggle('offline', !online);
+  }
+
+  function disconnectFirebase() {
+    if (unsubscribeFirestore) {
+      unsubscribeFirestore();
+      unsubscribeFirestore = null;
+    }
+    if (rtdbRef) {
+      rtdbRef.off();
+      rtdbRef = null;
+    }
+    fbMode = null;
+  }
+
+  function connectFirebase(config, preferredType = 'firestore', notify = false) {
+    if (typeof firebase === 'undefined') {
+      updateFbBadge(false, '🟠 Firebase SDK 로드 실패');
+      return;
+    }
+
+    try {
+      disconnectFirebase();
+      const appName = 'pomakerCalcApp_' + Date.now();
+      const app = firebase.initializeApp(config, appName);
+
+      // databaseURL만 있거나 사용자가 rtdb를 선택한 경우 Realtime Database 사용
+      if ((preferredType === 'rtdb' && config.databaseURL) || (!config.apiKey && config.databaseURL)) {
+        const db = app.database(config.databaseURL);
+        rtdbRef = db.ref('comments');
+        fbMode = 'rtdb';
+        updateFbBadge(true, `🟢 Firebase 실시간 연동 중 (${config.projectId || 'RTDB'})`);
+
+        rtdbRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          const list = [];
+          if (data) {
+            Object.keys(data).forEach(key => {
+              list.push({ id: key, ...data[key] });
+            });
+            list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          }
+          comments = list;
+          renderComments();
+        }, (err) => {
+          console.error('RTDB Error:', err);
+          updateFbBadge(false, '🟠 Firebase 권한/연결 오류');
+        });
+      } else {
+        // Cloud Firestore 실시간 리스너 (onSnapshot)
+        firestoreDb = app.firestore();
+        fbMode = 'firestore';
+        updateFbBadge(true, `🟢 Firebase 실시간 연동 중 (${config.projectId || 'test1026'})`);
+
+        unsubscribeFirestore = firestoreDb
+          .collection('comments')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot) => {
+            const list = [];
+            snapshot.forEach(doc => {
+              list.push({ id: doc.id, ...doc.data() });
+            });
+            comments = list;
+            renderComments();
+          }, (err) => {
+            console.error('Firestore Error:', err);
+            updateFbBadge(false, '🟠 Firestore 규칙/연결 확인 필요');
+          });
+      }
+
+      if (notify) {
+        fbConfigPanel.classList.add('hidden');
+        showToast('🔥 Firebase 실시간 댓글 동기화가 시작되었습니다!');
+      }
+    } catch (err) {
+      console.error(err);
+      updateFbBadge(false, '🟠 Firebase 설정 확인 필요');
+      if (notify) showToast('Firebase 초기화 중 오류가 발생했습니다.');
+    }
+  }
 
   // 관리자 메뉴 열기/닫기
   toggleAdminBtn.addEventListener('click', () => {
@@ -1170,17 +1339,32 @@ function initComments() {
   }
 
   // 전체 댓글 삭제 (관리자 전용)
-  deleteAllBtn.addEventListener('click', () => {
+  deleteAllBtn.addEventListener('click', async () => {
     if (!isAdmin) return;
     if (comments.length === 0) {
       showToast('삭제할 댓글이 없습니다.');
       return;
     }
-    if (confirm('모든 댓글을 삭제하시겠습니까?')) {
-      comments = [];
-      saveComments();
-      renderComments();
+    if (!confirm('모든 댓글을 삭제하시겠습니까?')) return;
+
+    try {
+      if (fbMode === 'firestore' && firestoreDb) {
+        const batch = firestoreDb.batch();
+        comments.forEach(c => {
+          batch.delete(firestoreDb.collection('comments').doc(c.id));
+        });
+        await batch.commit();
+      } else if (fbMode === 'rtdb' && rtdbRef) {
+        await rtdbRef.remove();
+      } else {
+        comments = [];
+        saveLocalComments();
+        renderComments();
+      }
       showToast('전체 댓글이 삭제되었습니다.');
+    } catch (err) {
+      console.error(err);
+      showToast('댓글 삭제 중 오류가 발생했습니다.');
     }
   });
 
@@ -1198,28 +1382,43 @@ function initComments() {
     }
   });
 
-  function submitNewComment() {
+  async function submitNewComment() {
     const content = contentInput.value.trim();
     if (!content) {
       showToast('댓글 내용을 입력해 주세요.');
       return;
     }
     const author = authorInput.value.trim() || '익명';
-    const newComment = {
-      id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    const payload = {
       author,
       content,
-      date: new Date().toLocaleString('ko-KR')
+      date: new Date().toLocaleString('ko-KR'),
+      createdAt: Date.now()
     };
 
-    comments.unshift(newComment);
-    saveComments();
     contentInput.value = '';
-    renderComments();
-    showToast('댓글이 등록되었습니다.');
+
+    try {
+      if (fbMode === 'firestore' && firestoreDb) {
+        await firestoreDb.collection('comments').add(payload);
+      } else if (fbMode === 'rtdb' && rtdbRef) {
+        await rtdbRef.push(payload);
+      } else {
+        comments.unshift({
+          id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          ...payload
+        });
+        saveLocalComments();
+        renderComments();
+      }
+      showToast('댓글이 실시간 등록되었습니다.');
+    } catch (err) {
+      console.error(err);
+      showToast('Firebase 댓글 저장 실패: 데이터베이스 규칙(Rules)을 확인해 주세요.');
+    }
   }
 
-  function saveComments() {
+  function saveLocalComments() {
     localStorage.setItem('smart_calc_comments', JSON.stringify(comments));
   }
 
@@ -1264,11 +1463,22 @@ function initComments() {
     });
   }
 
-  function deleteCommentById(id) {
-    comments = comments.filter(c => c.id !== id);
-    saveComments();
-    renderComments();
-    showToast('🗑️ 댓글이 삭제되었습니다.');
+  async function deleteCommentById(id) {
+    try {
+      if (fbMode === 'firestore' && firestoreDb) {
+        await firestoreDb.collection('comments').doc(id).delete();
+      } else if (fbMode === 'rtdb' && rtdbRef) {
+        await rtdbRef.child(id).remove();
+      } else {
+        comments = comments.filter(c => c.id !== id);
+        saveLocalComments();
+        renderComments();
+      }
+      showToast('🗑️ 댓글이 삭제되었습니다.');
+    } catch (err) {
+      console.error(err);
+      showToast('댓글 삭제 중 오류가 발생했습니다.');
+    }
   }
 
   renderComments();
