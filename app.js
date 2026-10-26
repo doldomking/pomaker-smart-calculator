@@ -1096,13 +1096,15 @@ function initUnitConverter() {
 /* ==================== 5. 하단 댓글 (Firebase 실시간 연동) & 관리자 삭제 기능 ==================== */
 const ADMIN_PASSWORD = '9875';
 
-// 기본 Firebase 설정 (test1026 프로젝트의 firebaseConfig가 있으면 여기에 넣거나 화면의 [🔥 Firebase 연결 설정]에서 붙여넣기 가능)
+// 기본 Firebase 설정 (test1026-6cef1 프로젝트 내장 설정 완료)
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "test1026.firebaseapp.com",
-  projectId: "test1026",
-  storageBucket: "test1026.firebasestorage.app",
-  databaseURL: ""
+  apiKey: "AIzaSyBZ5FEmk5i9zus31fwgqixNYXb9_l1-djw",
+  authDomain: "test1026-6cef1.firebaseapp.com",
+  projectId: "test1026-6cef1",
+  storageBucket: "test1026-6cef1.firebasestorage.app",
+  messagingSenderId: "2861607707",
+  appId: "1:2861607707:web:fd9dea234f0d3657b801be",
+  measurementId: "G-9XRRYBSNLH"
 };
 
 function escapeHtml(str) {
