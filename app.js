@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCalculator();
   initCurrencyConverter();
   initUnitConverter();
+  initComments();
 });
 
 /* ==================== 유틸리티 함수 ==================== */
@@ -223,7 +224,7 @@ function initCalculator() {
   document.addEventListener('keydown', (e) => {
     const isCalcActive = document.getElementById('tab-calculator').classList.contains('active');
     if (!isCalcActive) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
 
     if (e.key >= '0' && e.key <= '9') {
       e.preventDefault();
@@ -1090,4 +1091,185 @@ function initUnitConverter() {
       });
     });
   }
+}
+
+/* ==================== 5. 하단 댓글 & 관리자 삭제 기능 ==================== */
+const ADMIN_PASSWORD = '9875';
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function initComments() {
+  let comments = JSON.parse(localStorage.getItem('smart_calc_comments') || '[]');
+  let isAdmin = false;
+
+  const commentForm = document.getElementById('commentForm');
+  const authorInput = document.getElementById('commentAuthor');
+  const contentInput = document.getElementById('commentContent');
+  const commentListEl = document.getElementById('commentList');
+  const countBadge = document.getElementById('commentCountBadge');
+
+  const toggleAdminBtn = document.getElementById('toggleAdminMenuBtn');
+  const adminAuthPanel = document.getElementById('adminAuthPanel');
+  const adminPasswordInput = document.getElementById('adminPasswordInput');
+  const adminLoginBtn = document.getElementById('adminLoginBtn');
+  const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+  const adminActiveBadge = document.getElementById('adminActiveBadge');
+  const deleteAllBtn = document.getElementById('deleteAllCommentsBtn');
+
+  // 관리자 메뉴 열기/닫기
+  toggleAdminBtn.addEventListener('click', () => {
+    adminAuthPanel.classList.toggle('hidden');
+    if (!adminAuthPanel.classList.contains('hidden') && !isAdmin) {
+      adminPasswordInput.focus();
+    }
+  });
+
+  // 관리자 비밀번호 인증
+  function verifyAdminPassword() {
+    if (adminPasswordInput.value === ADMIN_PASSWORD) {
+      setAdminState(true);
+      adminPasswordInput.value = '';
+      showToast('🛡️ 관리자 모드가 활성화되었습니다.');
+    } else {
+      showToast('❌ 관리자 비밀번호가 일치하지 않습니다.');
+      adminPasswordInput.value = '';
+      adminPasswordInput.focus();
+    }
+  }
+
+  adminLoginBtn.addEventListener('click', verifyAdminPassword);
+  adminPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      verifyAdminPassword();
+    }
+  });
+
+  // 관리자 로그아웃
+  adminLogoutBtn.addEventListener('click', () => {
+    setAdminState(false);
+    adminAuthPanel.classList.add('hidden');
+    showToast('관리자 모드에서 로그아웃되었습니다.');
+  });
+
+  function setAdminState(active) {
+    isAdmin = active;
+    adminActiveBadge.classList.toggle('hidden', !active);
+    deleteAllBtn.classList.toggle('hidden', !active);
+    adminLogoutBtn.classList.toggle('hidden', !active);
+    adminLoginBtn.classList.toggle('hidden', active);
+    adminPasswordInput.classList.toggle('hidden', active);
+    renderComments();
+  }
+
+  // 전체 댓글 삭제 (관리자 전용)
+  deleteAllBtn.addEventListener('click', () => {
+    if (!isAdmin) return;
+    if (comments.length === 0) {
+      showToast('삭제할 댓글이 없습니다.');
+      return;
+    }
+    if (confirm('모든 댓글을 삭제하시겠습니까?')) {
+      comments = [];
+      saveComments();
+      renderComments();
+      showToast('전체 댓글이 삭제되었습니다.');
+    }
+  });
+
+  // 댓글 작성 등록
+  commentForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitNewComment();
+  });
+
+  // Enter로 댓글 등록 (Shift+Enter는 줄바꿈)
+  contentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submitNewComment();
+    }
+  });
+
+  function submitNewComment() {
+    const content = contentInput.value.trim();
+    if (!content) {
+      showToast('댓글 내용을 입력해 주세요.');
+      return;
+    }
+    const author = authorInput.value.trim() || '익명';
+    const newComment = {
+      id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      author,
+      content,
+      date: new Date().toLocaleString('ko-KR')
+    };
+
+    comments.unshift(newComment);
+    saveComments();
+    contentInput.value = '';
+    renderComments();
+    showToast('댓글이 등록되었습니다.');
+  }
+
+  function saveComments() {
+    localStorage.setItem('smart_calc_comments', JSON.stringify(comments));
+  }
+
+  function renderComments() {
+    countBadge.textContent = `${comments.length}개`;
+    if (comments.length === 0) {
+      commentListEl.innerHTML = '<p class="empty-msg">첫 번째 댓글을 남겨보세요!</p>';
+      return;
+    }
+
+    commentListEl.innerHTML = comments.map(item => `
+      <div class="comment-item" data-id="${item.id}">
+        <div class="comment-body">
+          <div class="comment-meta">
+            <span class="comment-author">👤 ${escapeHtml(item.author)}</span>
+            <span class="comment-date">${escapeHtml(item.date)}</span>
+          </div>
+          <div class="comment-text">${escapeHtml(item.content)}</div>
+        </div>
+        <button class="comment-delete-btn ${isAdmin ? 'admin-ready' : ''}" data-id="${item.id}" title="관리자 권한으로 댓글 삭제">
+          🗑️ 삭제
+        </button>
+      </div>
+    `).join('');
+
+    commentListEl.querySelectorAll('.comment-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.id;
+        if (isAdmin) {
+          deleteCommentById(targetId);
+        } else {
+          const inputPw = prompt('댓글을 삭제하려면 관리자 비밀번호를 입력하세요:');
+          if (inputPw === null) return;
+          if (inputPw === ADMIN_PASSWORD) {
+            setAdminState(true);
+            deleteCommentById(targetId);
+          } else {
+            showToast('❌ 관리자 비밀번호가 일치하지 않습니다.');
+          }
+        }
+      });
+    });
+  }
+
+  function deleteCommentById(id) {
+    comments = comments.filter(c => c.id !== id);
+    saveComments();
+    renderComments();
+    showToast('🗑️ 댓글이 삭제되었습니다.');
+  }
+
+  renderComments();
 }

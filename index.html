@@ -269,6 +269,60 @@
       </section>
     </main>
 
+    <!-- ==================== 하단 댓글 & 관리자 섹션 ==================== -->
+    <section class="card comments-section">
+      <div class="card-header comments-header">
+        <div class="comments-title-wrap">
+          <h2>💬 사용자 댓글</h2>
+          <span id="commentCountBadge" class="badge">0개</span>
+        </div>
+
+        <div class="admin-controls">
+          <span id="adminActiveBadge" class="admin-badge hidden">🛡️ 관리자 모드 활성화됨</span>
+          <button id="deleteAllCommentsBtn" class="danger-btn-sm hidden">🗑️ 전체 댓글 삭제</button>
+          <button id="toggleAdminMenuBtn" class="secondary-btn">🔐 관리자 메뉴</button>
+        </div>
+      </div>
+
+      <!-- 관리자 비밀번호 인증 패널 -->
+      <div id="adminAuthPanel" class="admin-auth-panel hidden">
+        <div class="admin-auth-row">
+          <label for="adminPasswordInput">관리자 비밀번호:</label>
+          <input type="password" id="adminPasswordInput" placeholder="비밀번호 입력" maxlength="20" />
+          <button id="adminLoginBtn" class="primary-btn-sm">인증</button>
+          <button id="adminLogoutBtn" class="text-btn hidden">로그아웃</button>
+        </div>
+        <p class="hint-text">* 관리자 인증 후 개별 댓글 삭제 및 전체 댓글 일괄 삭제가 가능합니다.</p>
+      </div>
+
+      <!-- 댓글 작성 폼 -->
+      <form id="commentForm" class="comment-form">
+        <input
+          type="text"
+          id="commentAuthor"
+          class="comment-author-input"
+          placeholder="닉네임 (미입력 시 익명)"
+          maxlength="20"
+        />
+        <div class="comment-input-row">
+          <textarea
+            id="commentContent"
+            class="comment-textarea"
+            placeholder="계산기에 대한 의견이나 메모를 남겨보세요... (Enter로 등록, Shift+Enter 줄바꿈)"
+            rows="2"
+            maxlength="500"
+            required
+          ></textarea>
+          <button type="submit" id="submitCommentBtn" class="comment-submit-btn">댓글 등록</button>
+        </div>
+      </form>
+
+      <!-- 댓글 목록 -->
+      <div id="commentList" class="comment-list">
+        <p class="empty-msg">첫 번째 댓글을 남겨보세요!</p>
+      </div>
+    </section>
+
     <!-- 토스트 알림 -->
     <div id="toast" class="toast hidden">복사되었습니다!</div>
   </div>
