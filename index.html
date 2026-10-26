@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>포메이커 스마트 계산기 - 올인원 환율·단위 변환기</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%233b82f6%22/><text x=%2250%25%22 y=%2254%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2264%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22white%22>∑</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- 상단 헤더 -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">∑</div>
+        <div>
+          <h1>포메이커 스마트 계산기</h1>
+          <p class="subtitle">일반·공학 계산 · 실시간 환율 · 11종 단위 변환</p>
+        </div>
+      </div>
+
+      <nav class="main-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="calculator" role="tab" aria-selected="true">
+          <span class="tab-icon">🧮</span> 계산기
+        </button>
+        <button class="tab-btn" data-tab="currency" role="tab" aria-selected="false">
+          <span class="tab-icon">💱</span> 환율 변환
+        </button>
+        <button class="tab-btn" data-tab="unit" role="tab" aria-selected="false">
+          <span class="tab-icon">📏</span> 단위 변환
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <button id="themeToggleBtn" class="icon-btn" title="다크/라이트 모드 전환">
+          <span id="themeIcon">☀️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 메인 콘텐츠 영역 -->
+    <main class="main-content">
+      <!-- ==================== 1. 계산기 탭 ==================== -->
+      <section id="tab-calculator" class="tab-panel active">
+        <div class="calc-layout">
+          <!-- 계산기 본체 -->
+          <div class="card calc-card">
+            <div class="calc-toolbar">
+              <div class="mode-switch">
+                <button id="stdModeBtn" class="chip-btn active">일반</button>
+                <button id="sciModeBtn" class="chip-btn">공학</button>
+              </div>
+              <div class="angle-switch" id="angleSwitchWrap">
+                <button id="degRadBtn" class="chip-btn" title="각도 단위 전환 (Degree / Radian)">DEG</button>
+              </div>
+              <div class="memory-bar">
+                <button class="mem-btn" data-mem="MC" title="메모리 초기화">MC</button>
+                <button class="mem-btn" data-mem="MR" title="메모리 불러오기">MR</button>
+                <button class="mem-btn" data-mem="M+" title="메모리 더하기">M+</button>
+                <button class="mem-btn" data-mem="M-" title="메모리 빼기">M-</button>
+                <span id="memoryIndicator" class="mem-indicator hidden">M</span>
+              </div>
+            </div>
+
+            <!-- 디스플레이 -->
+            <div class="calc-display">
+              <div id="calcExpression" class="calc-expression"></div>
+              <div id="calcResult" class="calc-result">0</div>
+              <div class="calc-display-actions">
+                <button id="copyCalcBtn" class="mini-action-btn" title="결과 복사">📋 복사</button>
+                <button id="sendToCurrencyBtn" class="mini-action-btn" title="현재 값을 환율 변환기로 보내기">💱 환율로</button>
+                <button id="sendToUnitBtn" class="mini-action-btn" title="현재 값을 단위 변환기로 보내기">📏 단위로</button>
+              </div>
+            </div>
+
+            <!-- 공학용 키패드 (접이식) -->
+            <div id="sciKeypad" class="sci-keypad hidden">
+              <button class="key-btn sci" data-action="func" data-val="sin(">sin</button>
+              <button class="key-btn sci" data-action="func" data-val="cos(">cos</button>
+              <button class="key-btn sci" data-action="func" data-val="tan(">tan</button>
+              <button class="key-btn sci" data-action="func" data-val="log(">log</button>
+              <button class="key-btn sci" data-action="func" data-val="ln(">ln</button>
+
+              <button class="key-btn sci" data-action="func" data-val="asin(">sin⁻¹</button>
+              <button class="key-btn sci" data-action="func" data-val="acos(">cos⁻¹</button>
+              <button class="key-btn sci" data-action="func" data-val="atan(">tan⁻¹</button>
+              <button class="key-btn sci" data-action="func" data-val="sqrt(">√x</button>
+              <button class="key-btn sci" data-action="func" data-val="cbrt(">∛x</button>
+
+              <button class="key-btn sci" data-action="op" data-val="^">xʸ</button>
+              <button class="key-btn sci" data-action="square">x²</button>
+              <button class="key-btn sci" data-action="reciprocal">1/x</button>
+              <button class="key-btn sci" data-action="func" data-val="abs(">|x|</button>
+              <button class="key-btn sci" data-action="factorial">n!</button>
+
+              <button class="key-btn sci" data-action="const" data-val="π">π</button>
+              <button class="key-btn sci" data-action="const" data-val="e">e</button>
+              <button class="key-btn sci" data-action="op" data-val="(">(</button>
+              <button class="key-btn sci" data-action="op" data-val=")">)</button>
+              <button class="key-btn sci" data-action="ans">ANS</button>
+            </div>
+
+            <!-- 기본 키패드 -->
+            <div class="std-keypad">
+              <button class="key-btn danger" data-action="clear">AC</button>
+              <button class="key-btn func-key" data-action="backspace">⌫</button>
+              <button class="key-btn func-key" data-action="percent">%</button>
+              <button class="key-btn operator" data-action="op" data-val="÷">÷</button>
+
+              <button class="key-btn num" data-action="num" data-val="7">7</button>
+              <button class="key-btn num" data-action="num" data-val="8">8</button>
+              <button class="key-btn num" data-action="num" data-val="9">9</button>
+              <button class="key-btn operator" data-action="op" data-val="×">×</button>
+
+              <button class="key-btn num" data-action="num" data-val="4">4</button>
+              <button class="key-btn num" data-action="num" data-val="5">5</button>
+              <button class="key-btn num" data-action="num" data-val="6">6</button>
+              <button class="key-btn operator" data-action="op" data-val="-">−</button>
+
+              <button class="key-btn num" data-action="num" data-val="1">1</button>
+              <button class="key-btn num" data-action="num" data-val="2">2</button>
+              <button class="key-btn num" data-action="num" data-val="3">3</button>
+              <button class="key-btn operator" data-action="op" data-val="+">+</button>
+
+              <button class="key-btn num" data-action="negate">±</button>
+              <button class="key-btn num" data-action="num" data-val="0">0</button>
+              <button class="key-btn num" data-action="decimal">.</button>
+              <button class="key-btn equals" data-action="equals">=</button>
+            </div>
+          </div>
+
+          <!-- 계산 기록 사이드바 -->
+          <div class="card history-card">
+            <div class="card-header">
+              <h2>🕒 계산 기록</h2>
+              <button id="clearHistoryBtn" class="text-btn">전체 삭제</button>
+            </div>
+            <div id="historyList" class="history-list">
+              <p class="empty-msg">계산 기록이 없습니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 2. 환율 변환 탭 ==================== -->
+      <section id="tab-currency" class="tab-panel">
+        <div class="converter-layout">
+          <div class="card converter-main-card">
+            <div class="card-header">
+              <div>
+                <h2>💱 실시간 각국 환율 변환</h2>
+                <p id="rateStatusText" class="status-subtext">환율 정보를 불러오는 중...</p>
+              </div>
+              <div class="header-btn-group">
+                <button id="refreshRatesBtn" class="secondary-btn">🔄 실시간 갱신</button>
+                <button id="toggleCustomRateBtn" class="secondary-btn">⚙️ 환율 직접 수정</button>
+              </div>
+            </div>
+
+            <!-- 환율 직접 수정 패널 -->
+            <div id="customRatePanel" class="custom-rate-panel hidden">
+              <div class="custom-rate-row">
+                <label for="customRateInput" id="customRateLabel">기준 환율 설정:</label>
+                <input type="number" id="customRateInput" step="any" placeholder="환율 입력" />
+                <button id="applyCustomRateBtn" class="primary-btn-sm">적용</button>
+                <button id="resetRatesBtn" class="text-btn">초기화</button>
+              </div>
+              <p class="hint-text">* 선택한 두 통화 간의 환율을 직접 지정하여 시뮬레이션할 수 있습니다.</p>
+            </div>
+
+            <!-- 변환 입력 박스 -->
+            <div class="exchange-box-grid">
+              <!-- 보내는 통화 (From) -->
+              <div class="exchange-box">
+                <label class="box-label">변환할 금액 (From)</label>
+                <select id="fromCurrency" class="currency-select"></select>
+                <div class="input-with-clear">
+                  <input type="number" id="fromCurrencyAmount" class="amount-input" value="1" step="any" />
+                </div>
+                <div id="fromCurrencyKorean" class="korean-reading"></div>
+              </div>
+
+              <!-- 스왑 버튼 -->
+              <div class="swap-container">
+                <button id="swapCurrencyBtn" class="swap-btn" title="통화 바꾸기">⇄</button>
+              </div>
+
+              <!-- 받는 통화 (To) -->
+              <div class="exchange-box highlight-box">
+                <label class="box-label">변환된 금액 (To)</label>
+                <select id="toCurrency" class="currency-select"></select>
+                <div class="result-value-wrap">
+                  <input type="text" id="toCurrencyAmount" class="amount-input result-input" readonly />
+                  <button id="copyCurrencyBtn" class="icon-copy-btn" title="결과 복사">📋</button>
+                </div>
+                <div id="toCurrencyKorean" class="korean-reading"></div>
+              </div>
+            </div>
+
+            <!-- 빠른 금액 버튼 -->
+            <div class="quick-amounts">
+              <span class="quick-label">빠른 입력:</span>
+              <button class="quick-btn" data-val="1" data-mode="set">1</button>
+              <button class="quick-btn" data-val="10" data-mode="set">10</button>
+              <button class="quick-btn" data-val="100" data-mode="set">100</button>
+              <button class="quick-btn" data-val="1000" data-mode="set">1,000</button>
+              <button class="quick-btn" data-val="10000" data-mode="set">1만</button>
+              <button class="quick-btn" data-val="100000" data-mode="set">10만</button>
+              <button class="quick-btn" data-val="1000000" data-mode="set">100만</button>
+            </div>
+
+            <!-- 기준 환율 요약 배너 -->
+            <div id="exchangeRateSummary" class="rate-summary-banner"></div>
+          </div>
+
+          <!-- 주요 국가 다중 환율 한눈에 보기 -->
+          <div class="card multi-currency-card">
+            <div class="card-header">
+              <h2>🌍 주요 통화 한눈에 비교</h2>
+              <span class="badge">기준 통화 연동</span>
+            </div>
+            <div id="multiCurrencyGrid" class="multi-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 3. 단위 변환 탭 ==================== -->
+      <section id="tab-unit" class="tab-panel">
+        <div class="converter-layout">
+          <div class="card unit-main-card">
+            <!-- 11개 단위 카테고리 선택 바 -->
+            <div id="unitCategoryBar" class="category-bar"></div>
+
+            <!-- 단위 변환 입력 영역 -->
+            <div class="exchange-box-grid unit-box-grid">
+              <div class="exchange-box">
+                <label class="box-label">입력 값 (From)</label>
+                <select id="fromUnit" class="currency-select"></select>
+                <input type="number" id="fromUnitValue" class="amount-input" value="1" step="any" />
+              </div>
+
+              <div class="swap-container">
+                <button id="swapUnitBtn" class="swap-btn" title="단위 바꾸기">⇄</button>
+              </div>
+
+              <div class="exchange-box highlight-box">
+                <label class="box-label">변환 결과 (To)</label>
+                <select id="toUnit" class="currency-select"></select>
+                <div class="result-value-wrap">
+                  <input type="text" id="toUnitValue" class="amount-input result-input" readonly />
+                  <button id="copyUnitBtn" class="icon-copy-btn" title="결과 복사">📋</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 변환 공식 / 설명 배너 -->
+            <div id="unitFormulaBanner" class="rate-summary-banner"></div>
+          </div>
+
+          <!-- 해당 카테고리 전체 단위 동시 변환표 -->
+          <div class="card multi-unit-card">
+            <div class="card-header">
+              <h2 id="allUnitsTableTitle">📊 전체 단위 동시 변환표</h2>
+              <span class="badge">클릭하여 복사</span>
+            </div>
+            <div id="allUnitsGrid" class="multi-grid"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="toast hidden">복사되었습니다!</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
